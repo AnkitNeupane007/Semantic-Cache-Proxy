@@ -8,7 +8,8 @@ Traditional caching fails for conversational AI because users phrase the same qu
 
 ## How it works
 
-<img src="docs/semantic_cache_proxy_architecture.svg" alt="Semantic Cache Proxy Architecture" width="700"/>
+![Architecture](assets/architecture.png)
+
 
 Every cache miss stores the prompt, its embedding, and the LLM response in Redis with a TTL. Future semantically similar queries skip the LLM entirely.
 
