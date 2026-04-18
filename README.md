@@ -8,7 +8,7 @@ Traditional caching fails for conversational AI because users phrase the same qu
 
 ## How it works
 
-<image src="./working.svg" width="400"/>
+![diagram](./assets/diagram.svg)
 
 Every cache miss stores the prompt, its embedding, and the LLM response in Redis with a TTL. Future semantically similar queries skip the LLM entirely.
 
