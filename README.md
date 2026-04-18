@@ -1,72 +1,234 @@
-# Semantic Cache Proxy for LLMs
+# Semantic Cache Proxy
 
-## Overview
+A FastAPI middleware that intercepts LLM API calls and serves cached responses for semantically similar queries — without ever hitting the upstream provider.
 
-The **Semantic Cache Proxy** is a high-performance, intelligent middleware acting as a bridge between your application and Large Language Model (LLM) APIs.
+Traditional caching fails for conversational AI because users phrase the same question differently every time. This proxy solves that by comparing vector embeddings instead of strings. _"What is gradient descent?"_ and _"Can you explain gradient descent to me?"_ are the same question — and they'll both hit the cache.
 
-Traditional caching mechanisms rely on exact string matching, which is highly ineffective for conversational AI where users frequently ask the exact same question in slightly different ways (e.g., "What's the capital of France?" vs "Can you tell me the French capital?").
+---
 
-This proxy solves this by caching responses based on **semantic similarity**. It calculates vector embeddings of incoming prompts and serves cached responses for "like" or semantically identical queries without ever hitting the upstream LLM provider.
+## How it works
 
-## 🎯 Key Benefits
+<image src="./working.svg" width="400"/>
 
-- **Massive Cost Savings**: By intercepting repetitive or semantically similar queries, you significantly reduce the number of tokens sent to expensive LLM providers (like OpenAI, Anthropic, etc.).
-- **Reduced Latency**: Computing an embedding and performing a vector search in Redis takes mere milliseconds—drastically faster than waiting for an LLM to generate a response from scratch.
-- **Rate-Limit Protection**: Shields your upstream LLM APIs from traffic spikes and aggressive rate limiting.
+Every cache miss stores the prompt, its embedding, and the LLM response in Redis with a TTL. Future semantically similar queries skip the LLM entirely.
 
-## 🏗️ What Was Built in This Project
+---
 
-This project implements a robust, Dockerized FastAPI application equipped with the following core components:
+## Features
 
-- **FastAPI Backend (`app/main.py`)**: A lightweight, async REST API to receive prompts.
-- **Embeddings Engine (`app/services/embeddings.py`)**: Converts incoming text prompts into vector representations using a fast, local, or lightweight embedding model.
-- **Vector Database (`app/db/redis.py`)**: Utilizes Redis (via Docker) as a blazing-fast vector database to store prompt embeddings and their corresponding LLM outputs.
-- **Semantic Cache Logic (`app/services/cache.py`)**: Performs cosine similarity searches on incoming prompts against the Redis vector store. If the similarity score exceeds a defined threshold, it registers a **Cache Hit**.
-- **LLM Fallback (`app/services/llm.py`)**: If a semantic match is not found (a **Cache Miss**), the proxy forwards the request to the upstream LLM, returns the response to the user, and asynchronously caches the new prompt/response pair for future use.
-- **Metrics & Monitoring (`app/services/metrics.py`)**: Tracks cache hit/miss ratios, latency improvements, and estimated cost savings.
+- **Semantic matching** — cosine similarity over vector embeddings, not exact string comparison
+- **Local embeddings** — `sentence-transformers` runs entirely on your machine, no external embedding API needed
+- **Redis vector store** — fast nearest-neighbour lookup with HNSW index
+- **Metrics endpoint** — real-time hit rate, latency saved, and estimated token cost savings
+- **Auth middleware** — API key validation on every request
+- **TTL-based expiry** — configurable cache lifetime per entry
+- **Docker Compose** — Redis + app wired up and ready to run
 
-## 🚀 Real-World Applications
+---
 
-Proper implementation of a semantic cache unlocks powerful capabilities for various production applications:
+## Project structure
 
-1.  **Customer Support Chatbots**: Users constantly ask variations of "How do I reset my password?" or "Where is my order?". Semantic caching absorbs this repetitive volume instantly for free.
-2.  **Enterprise RAG Systems**: In Retrieval-Augmented Generation, users often query internal company documents looking for the same operational guidelines.
-3.  **Educational Apps & Tutors**: Serving high-traffic platforms where students might be asking similar questions about a specific curriculum or syllabus.
-4.  **Development & Automated Testing**: When actively developing LLM features, developers run the same test suites repeatedly. Semantic caching prevents burning API credits during local development.
+```
+semantic-cache-proxy/
+├── app/
+│   ├── main.py                 # FastAPI app, route registration
+│   ├── routes/
+│   │   └── chat.py             # POST /chat endpoint
+│   ├── services/
+│   │   ├── cache.py            # Redis lookup + cosine similarity logic
+│   │   ├── embeddings.py       # sentence-transformers wrapper
+│   │   ├── llm.py              # OpenAI call + response handling
+│   │   └── metrics.py          # Hit rate, latency, token savings tracking
+│   ├── models/
+│   │   └── schemas.py          # Pydantic request/response models
+│   └── config.py               # Environment config via pydantic-settings
+├── tests/
+│   └── test_cache.py
+├── docker-compose.yml
+├── Dockerfile
+├── requirements.txt
+├── .env.example
+└── README.md
+```
 
-## 🛠️ Getting Started
+---
+
+## Getting started
 
 ### Prerequisites
 
-- Docker & Docker Compose
+- Docker and Docker Compose
 - Python 3.9+
-- Your preferred LLM API keys
+- An OpenAI API key (or any supported LLM provider)
 
-### Installation & Setup
+### 1. Clone and configure
 
-1. **Spin up the Vector Database (Redis):**
+```bash
+git clone https://github.com/your-username/semantic-cache-proxy.git
+cd semantic-cache-proxy
+cp .env.example .env
+```
 
-   ```bash
-   docker compose up -d redis
-   ```
+Edit `.env` with your keys:
 
-2. **Install dependencies:**
-   Ensure your virtual environment is activated, then run:
+```env
+OPENAI_API_KEY=sk-...
+REDIS_URL=redis://localhost:6379
+SIMILARITY_THRESHOLD=0.92
+CACHE_TTL_SECONDS=604800   # 7 days
+API_KEY=your-proxy-api-key
+```
 
-   ```bash
-   pip install -r requirements.txt
-   ```
+### 2. Start Redis
 
-3. **Configure Environment:**
-   Set up your environment variables (e.g., `OPENAI_API_KEY`, Redis connection strings) in your `.env` file (refer to `.env.example`).
+```bash
+docker compose up -d redis
+```
 
-4. **Run the Proxy:**
-   ```bash
-   uvicorn app.main:app --reload
-   ```
+### 3. Install dependencies
 
-## 📈 Future Enhancements
+```bash
+python -m venv venv
+source venv/bin/activate      # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
 
-- Implementing cache eviction policies (e.g., TTL based on vector age or access frequency).
-- Dynamic similarity thresholds based on query complexity.
-- Support for caching inputs and the responses.
+### 4. Run the proxy
+
+```bash
+uvicorn app.main:app --reload
+```
+
+The proxy is now running at `http://localhost:8000`.
+
+---
+
+## API reference
+
+### `POST /chat`
+
+Send a prompt through the proxy.
+
+**Request**
+
+```json
+{
+  "prompt": "What is gradient descent?"
+}
+```
+
+**Response — cache hit**
+
+```json
+{
+  "response": "Gradient descent is an optimization algorithm...",
+  "cache_hit": true,
+  "similarity_score": 0.97,
+  "latency_ms": 11
+}
+```
+
+**Response — cache miss**
+
+```json
+{
+  "response": "Gradient descent is an optimization algorithm...",
+  "cache_hit": false,
+  "similarity_score": null,
+  "latency_ms": 843
+}
+```
+
+### `GET /metrics`
+
+Returns cumulative stats since the proxy started.
+
+```json
+{
+  "total_requests": 1042,
+  "cache_hits": 731,
+  "hit_rate_pct": 70.2,
+  "tokens_saved": 98400,
+  "estimated_cost_saved_usd": 0.59,
+  "avg_latency_hit_ms": 12,
+  "avg_latency_miss_ms": 840
+}
+```
+
+---
+
+## Redis schema
+
+Each cached entry is stored as a Redis Hash:
+
+```
+cache:{uuid}
+  ├── prompt        "What is gradient descent?"
+  ├── embedding     <binary float32 array, 384 dims>
+  ├── response      "Gradient descent is..."
+  ├── created_at    1714000000
+  ├── model         "gpt-4o-mini"
+  ├── tokens        142
+  └── hit_count     3
+
+cache:index              ← sorted set, scored by created_at (used for TTL pruning)
+
+metrics:total_requests   ← INCR counter
+metrics:cache_hits       ← INCR counter
+metrics:tokens_saved     ← INCRBYFLOAT counter
+metrics:latency          ← Hash with running averages
+```
+
+---
+
+## Configuration reference
+
+| Variable               | Default                  | Description                                       |
+| ---------------------- | ------------------------ | ------------------------------------------------- |
+| `SIMILARITY_THRESHOLD` | `0.92`                   | Minimum cosine similarity to count as a cache hit |
+| `CACHE_TTL_SECONDS`    | `604800`                 | How long entries live (7 days)                    |
+| `EMBEDDING_MODEL`      | `all-MiniLM-L6-v2`       | sentence-transformers model                       |
+| `REDIS_URL`            | `redis://localhost:6379` | Redis connection string                           |
+| `OPENAI_API_KEY`       | —                        | Your LLM provider key                             |
+| `API_KEY`              | —                        | Key required on all proxy requests                |
+
+---
+
+## Running tests
+
+```bash
+pytest tests/
+```
+
+---
+
+## Why this matters
+
+|                     | Without cache  | With cache (70% hit rate) |
+| ------------------- | -------------- | ------------------------- |
+| 1000 requests       | 1000 LLM calls | ~300 LLM calls            |
+| Avg latency         | ~850ms         | ~260ms average            |
+| Monthly cost (est.) | $10.00         | ~$3.00                    |
+
+Actual savings depend on your traffic patterns and similarity threshold. Apps with repetitive query patterns (support bots, educational tools, internal RAG systems) see the highest hit rates.
+
+---
+
+## Roadmap
+
+- [ ] HNSW vector index via RedisSearch for sub-millisecond lookup at scale
+- [ ] Dynamic similarity threshold based on query complexity
+- [ ] Multi-provider support (Anthropic, Gemini, local Ollama)
+- [ ] Cache warming — pre-populate from a known FAQ dataset
+- [ ] Prometheus metrics export
+
+---
+
+## Tech stack
+
+- **FastAPI** — async REST API
+- **sentence-transformers** (`all-MiniLM-L6-v2`) — local embedding generation
+- **Redis** — vector store and metrics
+- **OpenAI SDK** — LLM fallback
+- **Docker Compose** — local orchestration
+- **pydantic-settings** — typed environment config
