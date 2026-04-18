@@ -69,7 +69,7 @@ async def process_chat_request(prompt: str) -> dict:
                 "token_count": token_count
             }
         )
-        await redis_client.expire(f"cache:{key}", 60 * 60 * 24)
+        await redis_client.expire(f"cache:{key}", settings.CACHE_TTL_SECONDS)
     except Exception as e:
         pass
 
