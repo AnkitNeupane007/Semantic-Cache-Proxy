@@ -122,6 +122,7 @@ Send a prompt through the proxy.
 ```json
 {
   "status": "cache_hit",
+  "latency_ms": 620,
   "data": {
     "stored_prompt": "What is gradient descent?",
     "stored_response": "Gradient descent is an optimization algorithm...",
@@ -137,6 +138,7 @@ Send a prompt through the proxy.
 ```json
 {
   "status": "cache_miss",
+  "latency_ms": 620,
   "data": {
     "prompt": "What is gradient descent?",
     "response": "Gradient descent is an optimization algorithm..."
