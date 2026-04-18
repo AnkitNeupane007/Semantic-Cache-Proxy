@@ -1,5 +1,6 @@
 import uuid
 import numpy as np
+import time
 
 from app.db.redis import redis_client, search_similar
 from app.services.embeddings import generate_embeddings
@@ -9,6 +10,7 @@ from app.core.config import settings
 from app.core.exceptions import ServiceException
 
 async def process_chat_request(prompt: str) -> dict:
+    start_time = time.perf_counter()
     try:
         await increment_request()
     except Exception as e:
@@ -42,6 +44,7 @@ async def process_chat_request(prompt: str) -> dict:
             
             return {
                 "status": "cache_hit",
+                "latency_ms": round((time.perf_counter() - start_time) * 1000, 2),
                 "data": {
                     "stored_prompt": top.prompt,
                     "stored_response": top.response,
@@ -75,6 +78,7 @@ async def process_chat_request(prompt: str) -> dict:
 
     return {
         "status": "cache_miss",
+        "latency_ms": round((time.perf_counter() - start_time) * 1000, 2),
         "data": {
             "prompt": prompt, 
             "response": response_content

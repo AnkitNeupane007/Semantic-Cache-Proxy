@@ -10,7 +10,6 @@ Traditional caching fails for conversational AI because users phrase the same qu
 
 ![Architecture](assets/architecture.png)
 
-
 Every cache miss stores the prompt, its embedding, and the LLM response in Redis with a TTL. Future semantically similar queries skip the LLM entirely.
 
 ---
@@ -122,10 +121,14 @@ Send a prompt through the proxy.
 
 ```json
 {
-  "response": "Gradient descent is an optimization algorithm...",
-  "cache_hit": true,
-  "similarity_score": 0.97,
-  "latency_ms": 11
+  "status": "cache_hit",
+  "data": {
+    "stored_prompt": "What is gradient descent?",
+    "stored_response": "Gradient descent is an optimization algorithm...",
+    "similarity": 1.0,
+    "tokens_used": 48,
+    "hit_count": 2
+  }
 }
 ```
 
@@ -133,10 +136,12 @@ Send a prompt through the proxy.
 
 ```json
 {
-  "response": "Gradient descent is an optimization algorithm...",
-  "cache_hit": false,
-  "similarity_score": null,
-  "latency_ms": 843
+  "status": "cache_miss",
+  "data": {
+    "prompt": "What is gradient descent?",
+    "response": "Gradient descent is an optimization algorithm..."
+  },
+  "tokens_used": 48
 }
 ```
 
@@ -146,13 +151,9 @@ Returns cumulative stats since the proxy started.
 
 ```json
 {
-  "total_requests": 1042,
-  "cache_hits": 731,
-  "hit_rate_pct": 70.2,
-  "tokens_saved": 98400,
-  "estimated_cost_saved_usd": 0.59,
-  "avg_latency_hit_ms": 12,
-  "avg_latency_miss_ms": 840
+  "total_requests": 2,
+  "cache_hits": 1,
+  "tokens_saved": 48
 }
 ```
 
@@ -167,17 +168,14 @@ cache:{uuid}
   ├── prompt        "What is gradient descent?"
   ├── embedding     <binary float32 array, 384 dims>
   ├── response      "Gradient descent is..."
-  ├── created_at    1714000000
-  ├── model         "gpt-4o-mini"
   ├── tokens        142
   └── hit_count     3
 
-cache:index              ← sorted set, scored by created_at (used for TTL pruning)
+cache:index              ← set of cached responses for indexing and semantic similarity search
 
 metrics:total_requests   ← INCR counter
 metrics:cache_hits       ← INCR counter
 metrics:tokens_saved     ← INCRBYFLOAT counter
-metrics:latency          ← Hash with running averages
 ```
 
 ---
@@ -192,14 +190,6 @@ metrics:latency          ← Hash with running averages
 | `REDIS_URL`            | `redis://localhost:6379` | Redis connection string                           |
 | `OPENAI_API_KEY`       | —                        | Your LLM provider key                             |
 | `API_KEY`              | —                        | Key required on all proxy requests                |
-
----
-
-## Running tests
-
-```bash
-pytest tests/
-```
 
 ---
 
