@@ -1,5 +1,14 @@
 # Semantic Cache Proxy
 
+![Python](https://img.shields.io/badge/Python-3.9+-3776AB?style=for-the-badge&logo=python&logoColor=white)
+![FastAPI](https://img.shields.io/badge/FastAPI-005571?style=for-the-badge&logo=fastapi)
+![Redis](https://img.shields.io/badge/Redis-DC382D?style=for-the-badge&logo=redis&logoColor=white)
+![Docker](https://img.shields.io/badge/Docker-2496ED?style=for-the-badge&logo=docker&logoColor=white)
+![OpenAI](https://img.shields.io/badge/OpenAI-412991?style=for-the-badge&logo=openai&logoColor=white)
+![SentenceTransformers](https://img.shields.io/badge/Sentence--Transformers-FF6F61?style=for-the-badge)
+![Pydantic](https://img.shields.io/badge/Pydantic-E92063?style=for-the-badge&logo=pydantic&logoColor=white)
+![Uvicorn](https://img.shields.io/badge/Uvicorn-4B8BBE?style=for-the-badge)
+
 A FastAPI middleware that intercepts LLM API calls and serves cached responses for semantically similar queries — without ever hitting the upstream provider.
 
 Traditional caching fails for conversational AI because users phrase the same question differently every time. This proxy solves that by comparing vector embeddings instead of strings. _"What is gradient descent?"_ and _"Can you explain gradient descent to me?"_ are the same question — and they'll both hit the cache.
